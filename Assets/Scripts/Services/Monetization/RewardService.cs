@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using Base.Platform;
@@ -19,6 +20,10 @@ namespace Base.Services.Monetization
             _rules = config.Rewards;
         }
 
+        public event Action<string, RewardOutcome> Completed;
+        public event Action<string> AdStarted;
+        public event Action<string, RewardedAdResult> AdFinished;
+
         public bool CanOffer => !_showing && (IsFree || _ads.IsRewardedAvailable || _rules.FreeWhenAdsUnavailable);
 
         private bool IsFree => _rules.FreeWithNoAds && _entitlements.Has(EntitlementIds.NoAds);
@@ -36,12 +41,15 @@ namespace Base.Services.Monetization
             RewardedAdResult result;
             try
             {
+                AdStarted?.Invoke(placement);
                 result = await _ads.ShowRewardedAsync(placement, cancellationToken);
             }
             finally
             {
                 _showing = false;
             }
+
+            AdFinished?.Invoke(placement, result);
 
             switch (result)
             {
@@ -54,9 +62,10 @@ namespace Base.Services.Monetization
             }
         }
 
-        private static RewardOutcome Log(string placement, RewardOutcome outcome)
+        private RewardOutcome Log(string placement, RewardOutcome outcome)
         {
             Debug.Log($"[Ads] Reward '{placement}' -> {outcome}");
+            Completed?.Invoke(placement, outcome);
             return outcome;
         }
     }

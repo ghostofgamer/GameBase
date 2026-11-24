@@ -56,8 +56,8 @@ namespace Base.Services.Quality
 
         /// <summary>
         /// Имя Quality Level в Project Settings для уровня качества.
-        /// Сейчас в проекте два уровня из шаблона URP: "Mobile" и "PC".
-        /// Уровня "Medium" нет, поэтому планшеты пока получают "Mobile".
+        /// Уровни в Project Settings > Quality: "Mobile", "Medium", "PC" (в игре их создаёт генератор).
+        /// Нет уровня — берётся ближайший ниже (Medium без своего уровня получает "Mobile").
         /// </summary>
         private static string LevelNameFor(QualityTier tier)
         {

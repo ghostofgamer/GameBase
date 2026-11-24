@@ -1,0 +1,19 @@
+{
+    "name": "Base.Kit.Editor",
+    "rootNamespace": "Base.Editor",
+    "references": [
+        "Base.Kit",
+        "Base.Services"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

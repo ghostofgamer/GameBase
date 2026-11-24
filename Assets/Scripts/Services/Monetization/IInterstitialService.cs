@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 
@@ -13,5 +14,11 @@ namespace Base.Services.Monetization
     {
         /// <summary>Повод для рекламы. Возвращает true, если реклама была показана.</summary>
         UniTask<bool> TryShowAsync(string trigger, CancellationToken cancellationToken = default);
+
+        /// <summary>Реклама пошла на показ (повод). Пропуски по правилам частоты сюда не попадают.</summary>
+        event Action<string> AdStarted;
+
+        /// <summary>Показ завершён: повод и показалась ли реклама (false — площадка не показала: нет рекламы или ошибка).</summary>
+        event Action<string, bool> AdFinished;
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 
@@ -36,5 +37,17 @@ namespace Base.Services.Monetization
 
         /// <summary>placement: место в игре, например "extra_reroll". Уходит в аналитику и логи.</summary>
         UniTask<RewardOutcome> RequestAsync(string placement, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Запрос награды завершён: место и итог. Для счётчиков игры (например, задание «посмотреть рекламу»),
+        /// чтобы не встраивать их в каждое место, где игра просит награду.
+        /// </summary>
+        event Action<string, RewardOutcome> Completed;
+
+        /// <summary>Реклама за награду пошла на показ (место). Не вызывается, когда награда выдана без рекламы (no_ads).</summary>
+        event Action<string> AdStarted;
+
+        /// <summary>Показ рекламы за награду завершён: место и ответ площадки (досмотрел, закрыл, нет рекламы, ошибка).</summary>
+        event Action<string, Base.Platform.RewardedAdResult> AdFinished;
     }
 }

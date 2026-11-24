@@ -50,6 +50,16 @@ namespace Base.Editor
         private static bool _needsLogin;
         private static int _appId;
 
+        /// <summary>
+        /// VK иногда отклоняет загрузку случайно ("15: Access denied: invalid file", затем "reading 'version'"),
+        /// а та же сборка проходит со второго раза (замечено 10.11.2026). Такие ошибки выкладка повторяет сама.
+        /// </summary>
+        private const int MaxAttempts = 3;
+        private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
+        private static int _attempt;
+        private static bool _retryable;
+        private static DateTime? _retryAt;
+
         [Serializable]
         private sealed class HostingConfig
         {
@@ -59,7 +69,7 @@ namespace Base.Editor
         [MenuItem("Base/Deploy/VK Games (dev)", priority = 0)]
         public static void DeployDev()
         {
-            if (_process != null)
+            if (_process != null || _retryAt.HasValue)
             {
                 Debug.LogWarning("[VKDeploy] Deploy is already running");
                 return;
@@ -89,6 +99,14 @@ namespace Base.Editor
                 "  \"update_prod\": 0\n" +
                 "}\n");
 
+            _attempt = 1;
+            StartProcess();
+        }
+
+        /// <summary>Запуск инструмента выкладки (первая попытка и повторы).</summary>
+        private static void StartProcess()
+        {
+            _retryable = false;
             var startInfo = new ProcessStartInfo("cmd.exe", $"/c npx --yes {ToolPackage}")
             {
                 WorkingDirectory = Path.GetFullPath(WorkDir),
@@ -139,6 +157,14 @@ namespace Base.Editor
         public static void BuildAndDeployDev()
         {
             if (BuildScript.TryBuild(PlatformId.VKGames))
+                DeployDev();
+        }
+
+        /// <summary>Тестовая панель площадки (кнопки рекламы, покупок, сохранения) вместо игры — собрать и выложить в dev.</summary>
+        [MenuItem("Base/Build/Test Panel/VK Games + Deploy (dev)", priority = 43)]
+        public static void BuildTestPanelAndDeployDev()
+        {
+            if (BuildScript.TryBuild(PlatformId.VKGames, true))
                 DeployDev();
         }
 
@@ -203,6 +229,9 @@ namespace Base.Editor
             if (line.Contains("Please open this url"))
                 _needsLogin = true;
 
+            if (line.Contains("invalid file") || line.Contains("reading 'version'"))
+                _retryable = true;
+
             if (line.Contains("pages.vk-apps.ru"))
             {
                 DevUrls.AppendLine(line.Trim());
@@ -211,6 +240,16 @@ namespace Base.Editor
             }
 
             Debug.Log("[VKDeploy] " + line);
+        }
+
+        private static void WaitRetry()
+        {
+            if (!_retryAt.HasValue || DateTime.Now < _retryAt.Value)
+                return;
+
+            EditorApplication.update -= WaitRetry;
+            _retryAt = null;
+            StartProcess();
         }
 
         private static void Stop()
@@ -231,6 +270,15 @@ namespace Base.Editor
             EditorApplication.update -= Poll;
             _process.Dispose();
             _process = null;
+
+            if (!success && !_needsLogin && _retryable && _attempt < MaxAttempts)
+            {
+                _attempt++;
+                Debug.LogWarning($"[VKDeploy] VK rejected the upload, retry {_attempt}/{MaxAttempts} in {RetryDelay.TotalSeconds:0} s");
+                _retryAt = DateTime.Now + RetryDelay;
+                EditorApplication.update += WaitRetry;
+                return;
+            }
 
             var gameUrl = $"https://vk.com/app{_appId}";
 

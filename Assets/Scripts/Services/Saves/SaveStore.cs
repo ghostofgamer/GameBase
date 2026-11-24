@@ -30,6 +30,15 @@ namespace Base.Services.Saves
         private static readonly TimeSpan LoadTimeout = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(5);
 
+        /// <summary>
+        /// Отложенные записи (RequestSave) — не чаще: прогресс партии просит сохранить почти на каждом броске, а запись —
+        /// это сериализация всех разделов и вызовы площадки (у VK лимит вызовов в час). Явные SaveNowAsync (покупка,
+        /// потеря фокуса) идут сразу.
+        /// </summary>
+        private const float MinWriteIntervalSeconds = 30f;
+
+        private float _lastWrite = float.NegativeInfinity;
+
         private readonly ICloudSaveService _cloud;
         private readonly Dictionary<string, Dictionary<int, ISaveMigration>> _migrations =
             new Dictionary<string, Dictionary<int, ISaveMigration>>();
@@ -40,6 +49,10 @@ namespace Base.Services.Saves
 
         /// <summary>Разделы, которые игра уже запросила. Сериализуются при каждой записи.</summary>
         private readonly Dictionary<string, object> _cache = new Dictionary<string, object>();
+
+        /// <summary>Что уходит в облако; заполняется заново при каждой записи.</summary>
+        private readonly SaveEnvelope _envelope = new SaveEnvelope { format = EnvelopeFormat };
+        private readonly Dictionary<string, SaveSection> _written = new Dictionary<string, SaveSection>();
 
         private readonly UniTaskCompletionSource _loaded = new UniTaskCompletionSource();
         private bool _loading;
@@ -183,8 +196,11 @@ namespace Base.Services.Saves
             {
                 _saveScheduled = false;
                 var json = Serialize();
+                _lastWrite = Time.realtimeSinceStartup;
                 await _cloud.SaveAsync(json, cancellationToken);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log($"[Saves] Saved {json.Length} chars");
+#endif
             }
             finally
             {
@@ -296,32 +312,39 @@ namespace Base.Services.Saves
             return json;
         }
 
+        /// <summary>Конверт и записи разделов переиспользуются между записями: новые только строки JSON.</summary>
         private string Serialize()
         {
-            var envelope = new SaveEnvelope { format = EnvelopeFormat, sections = new List<SaveSection>() };
+            var sections = _envelope.sections;
+            sections.Clear();
 
             foreach (var pair in _raw)
             {
                 if (!_cache.ContainsKey(pair.Key))
-                    envelope.sections.Add(pair.Value);
+                    sections.Add(pair.Value);
             }
 
             foreach (var pair in _cache)
             {
-                envelope.sections.Add(new SaveSection
-                {
-                    key = pair.Key,
-                    version = GetVersion(pair.Key),
-                    json = JsonUtility.ToJson(pair.Value),
-                });
+                if (!_written.TryGetValue(pair.Key, out var section))
+                    _written[pair.Key] = section = new SaveSection { key = pair.Key };
+
+                section.version = GetVersion(pair.Key);
+                section.json = JsonUtility.ToJson(pair.Value);
+                sections.Add(section);
             }
 
-            return JsonUtility.ToJson(envelope);
+            return JsonUtility.ToJson(_envelope);
         }
 
         private async UniTaskVoid DelayedSaveAsync()
         {
             await UniTask.Delay(SaveDelay, ignoreTimeScale: true);
+
+            // Прошлая запись была недавно: дождаться интервала (просьбы за это время сольются в одну запись).
+            var wait = _lastWrite + MinWriteIntervalSeconds - Time.realtimeSinceStartup;
+            if (wait > 0f)
+                await UniTask.Delay(TimeSpan.FromSeconds(wait), ignoreTimeScale: true);
 
             // Запись могла уже пройти через SaveNowAsync.
             if (!_saveScheduled)

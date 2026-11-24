@@ -30,21 +30,62 @@ namespace Base.Editor
         [MenuItem("Base/Build/RuStore (Android APK)", priority = 3)]
         public static void BuildRuStore() => Build(PlatformId.RuStore);
 
+        /// <summary>Тестовая сцена с кнопкой на каждый метод площадки (реклама, покупки, сохранение). Создаёт PlatformTestSceneCreator.</summary>
+        public const string TestPanelScene = "Assets/Scenes/PlatformTest.unity";
+
+        /// <summary>
+        /// Тестовая сборка: только сцена с кнопками площадки, без игры. Для проверки рекламы и покупок на площадке
+        /// без прохождения партий. Кладётся туда же, куда обычная (Builds/&lt;площадка&gt;): перед выпуском пересобрать обычную.
+        /// </summary>
+        [MenuItem("Base/Build/Test Panel/Yandex Games (WebGL)", priority = 40)]
+        public static void BuildYandexTestPanel() => TryBuild(PlatformId.Yandex, true);
+
+        [MenuItem("Base/Build/Test Panel/VK Games (WebGL)", priority = 41)]
+        public static void BuildVKGamesTestPanel() => TryBuild(PlatformId.VKGames, true);
+
+        [MenuItem("Base/Build/Test Panel/RuStore (Android APK)", priority = 42)]
+        public static void BuildRuStoreTestPanel() => TryBuild(PlatformId.RuStore, true);
+
+        /// <summary>Define тестовой сборки: игра включает свои читы (мгновенная победа и т. п.). В обычную сборку не попадает.</summary>
+        public const string CheatsDefine = "GAME_CHEATS";
+
+        /// <summary>
+        /// Тестовая сборка игры с читами (define GAME_CHEATS): что включается — решает игра. Кладётся туда же, куда обычная
+        /// (Builds/&lt;площадка&gt;): перед выпуском пересобрать обычную. CLI: BuildYandexCheats, BuildVKGamesCheats, BuildRuStoreCheats.
+        /// </summary>
+        [MenuItem("Base/Build/Cheats/Yandex Games (WebGL)", priority = 60)]
+        public static void BuildYandexCheats() => Build(PlatformId.Yandex, true);
+
+        [MenuItem("Base/Build/Cheats/VK Games (WebGL)", priority = 61)]
+        public static void BuildVKGamesCheats() => Build(PlatformId.VKGames, true);
+
+        [MenuItem("Base/Build/Cheats/RuStore (Android APK)", priority = 62)]
+        public static void BuildRuStoreCheats() => Build(PlatformId.RuStore, true);
+
         /// <summary>Сборка из меню или CLI. В batchmode завершает Unity с кодом результата.</summary>
-        public static void Build(PlatformId platform)
+        public static void Build(PlatformId platform, bool cheats = false)
         {
-            var ok = TryBuild(platform);
+            var ok = TryBuild(platform, false, cheats);
             if (Application.isBatchMode)
                 EditorApplication.Exit(ok ? 0 : 1);
         }
 
         /// <summary>Сборка без выхода из Unity: для цепочек вроде "собрать и выложить".</summary>
-        public static bool TryBuild(PlatformId platform)
+        public static bool TryBuild(PlatformId platform, bool testPanel = false, bool cheats = false)
         {
+            if (testPanel && !File.Exists(TestPanelScene))
+            {
+                EditorUtility.DisplayDialog("Base", $"Нет {TestPanelScene}. Создать: Base/Setup/Create Platform Test Scene " +
+                                                    "(потом убрать её из первых в Build Settings).", "OK");
+                return false;
+            }
+
             PlatformSwitcher.Apply(platform);
 
             var target = PlatformTargets.BuildTargetFor(platform);
-            var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
+            var scenes = testPanel
+                ? new[] { TestPanelScene }
+                : EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
             if (scenes.Length == 0)
             {
                 Debug.LogError("[Base] No scenes enabled in Build Settings");
@@ -71,6 +112,11 @@ namespace Base.Editor
                 locationPathName = location,
                 options = BuildOptions.None,
             };
+            if (cheats)
+            {
+                options.extraScriptingDefines = new[] { CheatsDefine };
+                Debug.LogWarning("[Base] CHEATS build (" + CheatsDefine + "): not for release, rebuild without cheats before publishing");
+            }
 
             var report = BuildPipeline.BuildPlayer(options);
             var summary = report.summary;

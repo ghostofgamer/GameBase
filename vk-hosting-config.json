@@ -1,6 +1,6 @@
 {
   "static_path": "Builds/VKGames",
-  "app_id": 54765957,
+  "app_id": 0,
   "endpoints": {
     "mobile": "index.html",
     "web": "index.html",

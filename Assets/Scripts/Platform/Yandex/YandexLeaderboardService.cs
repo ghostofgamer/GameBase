@@ -16,24 +16,24 @@ namespace Base.Platform.Yandex
 
         public bool IsAvailable => YandexBridge.IsSupported && YandexSession.IsInitialized;
 
-        public async UniTask SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
+        public async UniTask<bool> SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
         {
             if (!IsAvailable)
-                return;
+                return false;
 
+            // Записывать в таблицы может только вошедший игрок: аноним остаётся в очереди до входа.
             if (!YandexSession.IsAuthorized)
-            {
-                Debug.Log("[Yandex] SubmitScore skipped: player is not authorized");
-                return;
-            }
+                return false;
 
             try
             {
                 await YandexBridge.SubmitScoreAsync(boardId, score, cancellationToken);
+                return true;
             }
             catch (YandexBridgeException e)
             {
                 Debug.LogWarning($"[Yandex] SubmitScore failed: {e.Message}");
+                return false;
             }
         }
 

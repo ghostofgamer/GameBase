@@ -57,6 +57,14 @@ namespace Base.Services.Monetization
     public sealed class MonetizationConfig
     {
         public IReadOnlyList<ProductDefinition> Products = new ProductDefinition[0];
+
+        /// <summary>
+        /// Продажа за деньги включена. Выключено — IPurchaseFlow.IsAvailable = false на любой площадке, даже если SDK
+        /// отвечает, что оплата есть (черновик Яндекса без заведённых товаров): платное скрыто, кнопка не открывает оплату.
+        /// Восстановление уже купленного это не трогает.
+        /// </summary>
+        public bool PurchasesEnabled = true;
+
         public InterstitialRules Interstitial = new InterstitialRules();
         public RewardRules Rewards = new RewardRules();
 

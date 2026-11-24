@@ -15,10 +15,10 @@ namespace Base.Platform.VKPlay
 
         public bool IsAvailable => false;
 
-        public UniTask SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
+        public UniTask<bool> SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
         {
             Debug.LogWarning("[VKPlay] SubmitScore: SDK not integrated yet");
-            return UniTask.CompletedTask;
+            return UniTask.FromResult(false);
         }
 
         public UniTask<IReadOnlyList<LeaderboardEntry>> GetTopAsync(string boardId, int count, CancellationToken cancellationToken = default)

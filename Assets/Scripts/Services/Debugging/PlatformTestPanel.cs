@@ -392,7 +392,7 @@ namespace Base.Services.Debugging
             if (_localization == null)
                 return UniTask.CompletedTask;
 
-            var supported = Localization.Supported;
+            var supported = _localization.Languages;
             var index = 0;
             for (var i = 0; i < supported.Count; i++)
             {
@@ -566,8 +566,8 @@ namespace Base.Services.Debugging
         private async UniTask SubmitScore()
         {
             var score = UnityEngine.Random.Range(1000, 15000);
-            await _leaderboards.SubmitScoreAsync(LeaderboardId, score);
-            Log($"submitted score {score}");
+            var ok = await _leaderboards.SubmitScoreAsync(LeaderboardId, score);
+            Log(ok ? $"submitted score {score}" : $"score {score} not submitted (not authorized or unavailable)");
         }
 
         private async UniTask GetTop()

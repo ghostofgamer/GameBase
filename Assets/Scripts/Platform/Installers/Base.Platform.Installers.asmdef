@@ -10,6 +10,7 @@
         "Base.Platform.VKPlay",
         "Base.Platform.RuStore",
         "Base.Platform.VKGames",
+        "Base.Platform.Web",
         "UniTask",
         "Zenject"
     ],

@@ -14,6 +14,10 @@
   <assembly fullname="Base.Platform.RuStore" preserve="all" />
   <assembly fullname="Base.Platform.VKGames" preserve="all" />
   <assembly fullname="Base.Platform.Installers" preserve="all" />
+  <assembly fullname="Base.Platform.Web" preserve="all" />
+  <!-- Base.Kit: эффекты переходов окон хранятся через [SerializeReference], стриппинг их не видит. -->
+  <assembly fullname="Base.Kit" preserve="all" />
+  <!-- Код игры: сборка игры (asmdef) добавляется сюда, например <assembly fullname="MyGame" preserve="all" />. -->
   <assembly fullname="UniTask" preserve="all" />
   <!-- Zenject внедряет зависимости через reflection, а UI строится из кода: стриппинг им мешает. -->
   <assembly fullname="Zenject" preserve="all" />

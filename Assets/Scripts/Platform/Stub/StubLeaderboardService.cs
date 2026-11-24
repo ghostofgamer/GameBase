@@ -12,13 +12,13 @@ namespace Base.Platform.Stub
 
         public bool IsAvailable => true;
 
-        public UniTask SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
+        public UniTask<bool> SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
         {
             if (!_playerBest.TryGetValue(boardId, out var best) || score > best)
                 _playerBest[boardId] = score;
 
             Debug.Log($"[Stub] Leaderboard '{boardId}' submit {score}");
-            return UniTask.CompletedTask;
+            return UniTask.FromResult(true);
         }
 
         public UniTask<IReadOnlyList<LeaderboardEntry>> GetTopAsync(string boardId, int count, CancellationToken cancellationToken = default)

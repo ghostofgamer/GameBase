@@ -25,8 +25,24 @@ namespace Base.Editor
 
         public const string AndroidPackage = "ru.ghostofgamer.basegame";
 
+        /// <summary>
+        /// Номер счётчика Яндекс Метрики: аналитика web-площадок (Яндекс Игры, VK). Пусто — Метрика не подключается.
+        /// Попадает в страницу игры переменной шаблона METRIKA_ID ({{{ METRIKA_ID }}} в WebGLTemplates/*/index.html).
+        /// Счётчик — metrika.yandex.ru, без галочки «Принимать данные только с указанных адресов» (игра на чужих доменах).
+        /// </summary>
+        public const string MetrikaCounterId = "";
+
+        /// <summary>Имя переменной шаблона WebGL с номером счётчика Метрики.</summary>
+        public const string MetrikaTemplateVariable = "METRIKA_ID";
+
         public static void Apply()
         {
+            if (PlayerSettings.GetTemplateCustomValue(MetrikaTemplateVariable) != MetrikaCounterId)
+            {
+                Debug.Log($"[Base] Metrika counter: {MetrikaCounterId}");
+                PlayerSettings.SetTemplateCustomValue(MetrikaTemplateVariable, MetrikaCounterId);
+            }
+
             if (PlayerSettings.companyName != CompanyName)
             {
                 Debug.Log($"[Base] Company name: {PlayerSettings.companyName} -> {CompanyName}");

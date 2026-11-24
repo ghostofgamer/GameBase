@@ -17,7 +17,12 @@ namespace Base.Platform
     {
         bool IsAvailable { get; }
 
-        UniTask SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default);
+        /// <summary>
+        /// Отправить результат. true — площадка записала; false — не записано (игрок не вошёл, нет таблиц, ошибка сети):
+        /// игра оставит результат в очереди и отправит позже. Отличать «записано» от «пропущено» обязательно, иначе
+        /// результат вошедшего позже игрока потеряется.
+        /// </summary>
+        UniTask<bool> SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default);
 
         UniTask<IReadOnlyList<LeaderboardEntry>> GetTopAsync(string boardId, int count, CancellationToken cancellationToken = default);
 

@@ -1,0 +1,26 @@
+{
+    "name": "Base.Kit",
+    "rootNamespace": "Base",
+    "references": [
+        "Base.Core",
+        "Base.Services",
+        "Base.Platform.Abstractions",
+        "UniTask",
+        "UniTask.Addressables",
+        "Zenject",
+        "Unity.InputSystem",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "Unity.Addressables",
+        "Unity.ResourceManager"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

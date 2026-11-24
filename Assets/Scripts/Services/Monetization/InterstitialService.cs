@@ -22,6 +22,9 @@ namespace Base.Services.Monetization
         private int _triggersSinceShow;
         private bool _showing;
 
+        public event Action<string> AdStarted;
+        public event Action<string, bool> AdFinished;
+
         public InterstitialService(IAdsService ads, IEntitlements entitlements, MonetizationConfig config)
         {
             _ads = ads;
@@ -51,6 +54,7 @@ namespace Base.Services.Monetization
             _showing = true;
             try
             {
+                AdStarted?.Invoke(trigger);
                 var shown = await _ads.ShowInterstitialAsync(cancellationToken);
                 if (shown)
                 {
@@ -58,6 +62,7 @@ namespace Base.Services.Monetization
                     _lastAdClosedAt = Time.realtimeSinceStartup;
                 }
 
+                AdFinished?.Invoke(trigger, shown);
                 Debug.Log($"[Ads] Interstitial '{trigger}' shown={shown}");
                 return shown;
             }

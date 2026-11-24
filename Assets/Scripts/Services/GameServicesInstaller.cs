@@ -18,10 +18,13 @@ namespace Base.Services
 
             Container.Bind<MonetizationConfig>().FromInstance(MonetizationConfig.CreateDefault()).AsSingle();
             Container.Bind<IEntitlements>().To<Entitlements>().AsSingle();
+            Container.Bind<IPurchaseVerifier>().To<TrustingPurchaseVerifier>().AsSingle();
             Container.Bind<IPurchaseFlow>().To<PurchaseFlow>().AsSingle();
             Container.Bind<IRewardService>().To<RewardService>().AsSingle();
             Container.BindInterfacesTo<InterstitialService>().AsSingle();
             Container.BindInterfacesTo<AdPauseController>().AsSingle();
+            Container.Bind<Haptics.IHapticsService>().To<Haptics.HapticsService>().AsSingle();
+            Container.Bind<Analytics.IAnalytics>().To<Analytics.Analytics>().AsSingle();
         }
     }
 }

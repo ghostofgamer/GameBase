@@ -14,6 +14,11 @@ namespace Base.Core.Localization
 
             Add(table, "language.name", "Русский", "English");
 
+            // Base.Kit: ползунки громкости (KitTexts). Остальные языки — строкой с тем же ключом в таблице игры.
+            Add(table, "settings.soundVolume", "Звуки", "Sounds");
+            Add(table, "settings.musicVolume", "Музыка", "Music");
+            Add(table, "settings.volumePercent", "{0}%", "{0}%");
+
             // Кнопки тестовой панели
             Add(table, "btn.status", "Статус", "Status");
             Add(table, "btn.authorize", "Авторизация", "Sign in");

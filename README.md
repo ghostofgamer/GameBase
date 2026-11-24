@@ -7,12 +7,22 @@
 
 ## Где мы сейчас
 
-Состояние на 24 сентября 2026 года.
+Состояние на 24 ноября 2026 года.
 
-Шаблон проверен на всех площадках (метка `template-v1`, тогда ещё под именем Farkle), затем код переименован
-в нейтральный `Base.*`. После переименования нужна короткая проверка (раздел «Проверка шаблона»),
-затем метка `template-v2`. Игрового кода в шаблоне нет, вместо игры тестовая сцена `Scenes/PlatformTest.unity`
-с кнопкой на каждый метод площадки и общего слоя.
+Шаблон догнал первую игру — «Зонк: Кости Фортуны» (на 24.11 на модерации в VK и RuStore). Весь общий код
+`Assets/Scripts` перенесён из Зонка: аналитика (AppMetrica на RuStore, Яндекс Метрика на web), тексты игры из CSV
+и Google Таблицы, вибрация, защита покупок (`IPurchaseVerifier`, сверка прав при запуске), исправления мостов,
+хранилища VK, сборки и выкладки. Настройки проекта тоже: три уровня качества с URP-ассетами (`Mobile`, `Base_Medium`,
+`Base_High`), туман только Exponential, ETC2 на Android, gradle-шаблоны, звук, без заставки Unity.
+Игрового кода в шаблоне нет, вместо игры тестовая сцена `Scenes/PlatformTest.unity`.
+
+Из кода Зонка вынесено общее для любой игры — сборка `Base.Kit`: окна-префабы и их переходы, кнопка «Назад»,
+безопасная зона, детали окон (кнопка, нажатие, качание, ползунок громкости), звук и музыка без AudioMixer, настройки игрока,
+DOTween через UniTask, тексты без мусора, пулы, основа теста совместимости сохранений. Спрайтов, моделей и стиля нет.
+
+Дальше: пустая игра-заготовка (меню, настройки, одна сцена) и проверка сборки на трёх площадках. По решению новой игры —
+реестр контента и валидатор, магазин и цены (для игр с контентом за монеты), снимки игры автопилотом; комикс-шейдер
+и скрипты Blender — только если стиль повторится.
 
 | Площадка | Состояние |
 |---|---|
@@ -45,19 +55,24 @@
 
 | Файл | Что поменять |
 |---|---|
-| `Assets/Scripts/Editor/ProjectIdentity.cs` | `ProductName` (название, можно по-русски), `BuildFileName` (имя APK латиницей), `AndroidPackage` (`ru.ghostofgamer.<игра>`, **после публикации в RuStore не меняется никогда**) |
-| `vk-hosting-config.json` | `app_id` игры в VK (создать игру на dev.vk.com). Сейчас там ID «Зонк: Кости Фортуны» |
+| `Assets/Scripts/Editor/ProjectIdentity.cs` | `ProductName` (название, можно по-русски), `BuildFileName` (имя APK латиницей), `AndroidPackage` (`ru.ghostofgamer.<игра>`, **после публикации в RuStore не меняется никогда**), `MetrikaCounterId` (счётчик metrika.yandex.ru для web-площадок) |
+| `Assets/Scripts/Platform/RuStore/RuStoreAppMetrica.cs` | `ApiKey` приложения в AppMetrica (пусто — аналитика RuStore выключена) |
+| `vk-hosting-config.json` | `app_id` игры в VK (создать игру на dev.vk.com), в шаблоне 0 |
 | `Assets/Scripts/Services/Monetization/MonetizationConfig.cs` | товары (ID как в консоли площадки), частота interstitial, правила наград |
 | `Assets/Scripts/Platform/RuStore/RuStoreAdUnits.cs` | свои рекламные блоки из partner.yandex.ru перед публикацией (для тестов работают демо) |
-| `Assets/Scripts/Core/Localization/LocalizationTable.cs` | тексты игры (ru и en) |
+| `<Название>Content/Localization/Texts.csv` | тексты игры (`key,ru,en,...`), источник — Google Таблица (`Base/Localization/Download Sheets`). `LocalizationTable` шаблона оставить |
 | Project Settings → Player | иконка, заставка, ориентация экрана |
 | `README.md`, `AGENTS.md` | шапка README про игру; в AGENTS.md добавить раздел об игре, правила шаблона оставить |
 
-4. Код игры: папка `Assets/Game/<Название>/`, в ней asmdef `<Название>` со ссылками на `Base.Core`, `Base.Services`,
+4. Код игры: папка `Assets/<Название>Content/Scripts/`, в ней asmdef `<Название>` со ссылками на `Base.Core`, `Base.Services`,
    `Base.Platform.Abstractions`, `UniTask`, `Zenject`. Сборку добавить в `Assets/link.xml` с `preserve="all"`.
 5. Zenject: сервисы игры, которые живут всё время, и миграции сохранений (`ISaveMigration`) биндятся в своём
    `MonoInstaller`, добавленном в список Mono Installers в `Assets/Resources/ProjectContext.prefab`.
    Сервисы одной сцены: `SceneContext` в сцене со своим инсталлером.
+   Общие части (`Base.Kit`): в инсталлере игры `KitBindings.InstallProject(Container, soundConfig, uiConfig)`,
+   в сцене с интерфейсом — `KitSceneInstaller` (корень UI с `UiSafeArea`, `SoundPlayer`, `MusicPlayer`).
+   Ассеты `SoundConfig` и `UiConfig` (меню `Base/Audio`, `Base/UI`) — в конфигах игры, `UiConfig.WindowsFolder` — папка окон игры.
+   Тест сохранений — наследник `SaveCompatibilityTestBase`, папка снимков — `IReleaseFixtureSource` в Editor-сборке игры.
 6. Build Settings: первой поставить сцену игры. `PlatformTest` оставить в проекте для проверки площадок, из сборки убрать.
 7. В консолях площадок завести лидерборды и товары с теми же ID, что в коде.
 8. Меню `Base/Platform/<площадка>`, затем `Base/Build/...`.
@@ -65,7 +80,7 @@
 Исправления, сделанные в игре и касающиеся шаблона (`Assets/Scripts`), переносить в шаблон руками, и наоборот.
 Когда игр станет три и больше, платформенный слой стоит вынести в UPM-пакет, чтобы исправления приходили обновлением.
 
-**Фаркл** будет первой игрой из шаблона: пакет `ru.ghostofgamer.farkle`, VK ID 54765957.
+**Зонк** — первая игра из шаблона (репозиторий ZonkGame): пакет `ru.ghostofgamer.zonk`, VK ID 54765957.
 
 ## Проверка шаблона
 
@@ -112,6 +127,42 @@
 - Папка `Test/` со скриншотами попала в коммит `YandexCompleted`. Если не нужна, убрать из git и добавить в `.gitignore`.
 
 ## Журнал изменений
+### 2026-11-24 (Base.Kit: общее из кода Зонка)
+
+- Новая сборка `Base.Kit` (`Assets/Scripts/Kit`): то, что в Зонке было кодом игры, но нужно в каждой игре. Отвязано от Зонка:
+  окна не знают сцену стола, звуки — строковые ID вместо перечисления событий Зонка, музыка играет переданный трек
+  (не трек локации), настройки — только общие (громкость, вибрация, язык).
+  - Окна: `UiWindow`, `IUiService`, `UiConfig` (палитра, шрифты, переходы по умолчанию, папка окон), переходы `UiTransitionConfig`
+    с эффектами, `UiBackButton` (корневой экран — `IsRootScreen`, вопрос о выходе — `IQuitPrompt` игры), `UiSafeArea`, `UiPool<T>`.
+  - Детали: `UiButtonView`, `UiPress`, `UiSway`, `SpriteFlipbook`, `VolumeSliderView`, `UiFitHeight`, `UiLabelPlate`.
+  - Звук: `SoundPlayer`, `SoundConfig`, `ProceduralSounds` (заглушки интерфейса встроены, свои — `SetFallback`), `MusicPlayer`, `UiSfx`.
+  - `IGameSettings`, `TweenAwait`, `Animate`, `UiFormat`, `NumberTemplate`, `NumberText`, `SubclassSelector`.
+  - Подключение: `KitBindings.InstallProject` и `KitSceneInstaller`.
+- Редактор (`Base.Kit.Editor`): выпадающий список классов для `[SerializeReference]`, сборка списка окон (`Base/UI/Rebuild Windows`),
+  снимок выпуска (`Base/Saves/Export Release Fixture`). Тесты: `Base.Testing` — основа теста совместимости сохранений,
+  `Base.Kit.Tests` — 6 EditMode-тестов, проходят.
+- DOTween (бесплатная версия) в `Assets/Plugins/Demigiant`, define `DOTWEEN`; `Base.Kit` в `link.xml`.
+- Тексты ползунков громкости (`settings.soundVolume`, `settings.musicVolume`, `settings.volumePercent`) — в `LocalizationTable`.
+- AGENTS.md: раздел «Общие части игры (Base.Kit)» — правила окон, звука, музыки, анимаций, производительности, вёрстки.
+- Не перенесено: префабы деталей, спрайты, шрифты, генератор сцен Зонка, магазин, реестр контента, снимки автопилотом,
+  комикс-шейдер, скрипты Blender. Зонк пока на своих копиях: переедет на `Base.Kit` отдельным обновлением после модерации.
+
+
+### 2026-11-24 (шаблон догоняет Зонк)
+
+- `Assets/Scripts` целиком из Зонка (49 изменённых и новых файлов): `Base.Platform.Web` (Яндекс Метрика), AppMetrica
+  на RuStore (`RuStoreAppMetrica`, `RuStoreAnalyticsService`), `IAnalytics` по «папкам», `IHapticsService`, тексты из CSV
+  (`ILocalizationSource`, `CsvLocalizationParser`, `Base/Localization/Download Sheets`), `IPurchaseVerifier`, `TimeScaleGuard`,
+  исправления мостов Яндекса и VK, хранилища VK, `SaveStore`, сборки и выкладки.
+- Своё у игры обнулено: `ProjectIdentity` (BaseGame, `ru.ghostofgamer.basegame`, счётчик Метрики пуст),
+  `RuStoreAdUnits` (демо-блоки), `RuStoreAppMetrica.ApiKey` пуст, `vk-hosting-config.json` `app_id: 0`.
+- Пакеты через git с тегами, как в Зонке: Яндекс Реклама, AppMetrica, адаптер AdRevenue, EDM4U; Addressables 2.8.1.
+  Gradle-шаблоны Android обновлены под AppMetrica.
+- Настройки проекта: уровни качества и URP-ассеты `Base_Medium_RPAsset`, `Base_High_RPAsset`; туман только Exponential;
+  звук (16 голосов, буфер 1024); Sprite Atlas v2; ETC2 на Android; IL2CPP WebGL «по размеру»; без заставки Unity;
+  свои gradle-шаблоны включены.
+- Удалены остатки шаблона Unity: `TutorialInfo`, `Readme.asset`, `SampleScene` (в сборке остаётся `PlatformTest`).
+- AGENTS.md: правила общего слоя из Зонка (аналитика, сторож сохранений, защита покупок, выкладка прода VK).
 
 ### 2026-09-10
 

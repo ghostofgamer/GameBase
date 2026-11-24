@@ -1,0 +1,19 @@
+{
+    "name": "Base.Platform.Web",
+    "rootNamespace": "Base.Platform.Web",
+    "references": [
+        "Base.Platform.Abstractions"
+    ],
+    "includePlatforms": [
+        "Editor",
+        "WebGL"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

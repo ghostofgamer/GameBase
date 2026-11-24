@@ -14,10 +14,10 @@ namespace Base.Platform.RuStore
 
         public bool IsAvailable => false;
 
-        public UniTask SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
+        public UniTask<bool> SubmitScoreAsync(string boardId, long score, CancellationToken cancellationToken = default)
         {
             Debug.Log($"[RuStore] SubmitScore '{boardId}' {score}: no leaderboard backend");
-            return UniTask.CompletedTask;
+            return UniTask.FromResult(false);
         }
 
         public UniTask<IReadOnlyList<LeaderboardEntry>> GetTopAsync(string boardId, int count, CancellationToken cancellationToken = default)

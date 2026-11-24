@@ -31,11 +31,50 @@
         return params;
       })();
       console.log('[VK] launch: lang=' + window.vkLaunchParams.vk_language + ' platform=' + window.vkLaunchParams.vk_platform);
+
+      // Полная версия vk.com на компьютере открывает игру узким вертикальным фреймом, а игра только горизонтальная:
+      // просим окно 1000×600, ближе всего к 16:9 (VKWebAppResizeWindow: только веб; в настройках VK размер iframe от 630×600 до 1000×4050). Лучше — «Широкоформатный режим» в настройках приложения, тогда игра во всю вкладку.
+      // На телефоне и в m.vk.com окно и так во весь экран, там не вызывается.
+      if ((window.vkLaunchParams.vk_platform || '').indexOf('desktop_web') === 0 && typeof vkBridge !== 'undefined') {
+        window.vkInitPromise.then(function () {
+          return vkBridge.send('VKWebAppResizeWindow', { width: 1000, height: 600 });
+        }).then(function (size) {
+          console.log('[VK] window resized', size);
+        }).catch(function (e) {
+          console.warn('[VK] VKWebAppResizeWindow failed', e);
+        });
+      }
+    </script>
+    <!-- Яндекс Метрика: аналитика игры (события из Unity — WebMetrika.jslib). Номер — ProjectIdentity.MetrikaCounterId. -->
+    <script>
+      window.baseMetrikaId = parseInt("{{{ METRIKA_ID }}}", 10) || 0;
+      if (window.baseMetrikaId) {
+        (function (m, e, t, r, i, k, a) {
+          m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments); };
+          m[i].l = 1 * new Date();
+          k = e.createElement(t); a = e.getElementsByTagName(t)[0];
+          k.async = 1; k.src = r; a.parentNode.insertBefore(k, a);
+        })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
+        // Без вебвизора и карты кликов: лишняя нагрузка, игре они ничего не дают.
+        ym(window.baseMetrikaId, 'init', { clickmap: false, trackLinks: false, accurateTrackBounce: true, webvisor: false });
+      }
     </script>
     <style>
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: {{{ BACKGROUND_FILLED ? BACKGROUND : '#231F20' }}}; }
       #unity-canvas { width: 100%; height: 100%; display: block; }
+      /* Долгое нажатие и мышь не выделяют поле и не открывают меню, страница не прокручивается
+         и не обновляется жестом «потянуть вниз» (то же, что требует модерация Яндекса). */
+      html, body, #unity-canvas {
+        overscroll-behavior: none; touch-action: none;
+        -webkit-user-select: none; user-select: none;
+        -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+      }
     </style>
+    <script>
+      ['contextmenu', 'selectstart', 'dragstart'].forEach(function (name) {
+        document.addEventListener(name, function (e) { e.preventDefault(); });
+      });
+    </script>
   </head>
   <body>
     <canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas>

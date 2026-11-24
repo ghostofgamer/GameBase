@@ -7,7 +7,7 @@
 
 - **Код шаблона** (`Assets/Scripts`, сборки `Base.*`) в игре не переименовывается. Исправления, сделанные в игре,
   которые касаются шаблона, переносятся в шаблон, и наоборот.
-- **Код игры** живёт в `Assets/Game/<Название>` со своей сборкой (asmdef) и своим пространством имён.
+- **Код игры** живёт в `Assets/<Название>Content` (например, `Assets/ZonkContent` у Зонка) со своей сборкой (asmdef) и своим пространством имён.
   Он ссылается на `Base.Core`, `Base.Services`, `Base.Platform.Abstractions`, UniTask, Zenject. Сборки шаблона
   на код игры не ссылаются. Сборку игры нужно добавить в `Assets/link.xml` (`preserve="all"`), иначе Zenject
   в IL2CPP-сборке не создаст её классы.
@@ -15,6 +15,7 @@
 
 ## Стек и соглашения
 
+- **Анимации: DOTween** (бесплатная версия из Asset Store, лежит в `Assets/Plugins/Demigiant`, define `DOTWEEN`), ожидание твинов через UniTask (`TweenAwait`).
 - **Async: только UniTask.** Корутины не используются. Все асинхронные методы возвращают `UniTask` / `UniTask<T>`
   и принимают `CancellationToken`. Fire-and-forget только через `.Forget()`.
 - **DI: Zenject (Extenject из Asset Store, лежит в `Assets`, сборка `Zenject`).** Не ставить через OpenUPM или git, чтобы не было двух копий. Зависимости через конструктор. Никаких `FindObjectOfType`, синглтонов и статических сервисов.
@@ -26,10 +27,18 @@
 - **Качество графики** игра получает только через `IQualityService` (уровни Low/Medium/High).
   Уровень выбирается по `IPlatformService.Device` и включает Quality Level Unity с тем же смыслом.
   Что меняется на уровне (URP-ассет, render scale, ужатие текстур), настраивается в Project Settings > Quality, не в коде.
+- **Аналитика только через `IAnalytics`** (`Base.Services.Analytics`): имя события — «папка» (категория), `Path` — вложенные
+  папки, `Param` — значения. Имена латиницей в snake_case, в значениях ID контента. Прямые вызовы AppMetrica из игры запрещены.
+  События редкие и значимые (не каждый кадр и не каждый бросок).
 - **Сохранение только через `ISaveStore`**, не через `ICloudSaveService` напрямую. Каждая система игры берёт свой раздел
   (`Get<T>(key)`, `[Serializable]`-класс для JsonUtility). Переименовать или перенести поле раздела можно только
   вместе с новой `ISaveMigration` (FromVersion = текущая версия раздела). Старые миграции не удалять.
   Добавлять новые поля можно без миграции.
+  **Сторож обновлений** — EditMode-тест игры: сохранение каждого выпуска (`Tests/Saves/save_<версия>.json`) читается без потерь,
+  ID контента выпуска на месте: наследник `SaveCompatibilityTestBase`, см. «Общие части игры».
+- **Защита покупок:** права за деньги выдаёт только `IPurchaseFlow`; при запуске `PurchaseFlow` сверяет постоянные права со списком
+  площадки (`IPurchaseService.GetPurchasesAsync`, `ListsPermanentPurchases`) и снимает неподтверждённые. Проверка покупки
+  перед выдачей — `IPurchaseVerifier` (с сервером — проверка подписи). Новая площадка обязана отличать «не ответила» от «пусто».
 - **Реклама и покупки в игре только через общий слой:** `IInterstitialService.TryShowAsync(trigger)` на естественных паузах
   (конец партии, перезапуск), `IRewardService.RequestAsync(placement)` для наград, `IPurchaseFlow` для покупок,
   `IEntitlements` для проверки прав. Прямые вызовы `IAdsService` / `IPurchaseService` из игры запрещены:
@@ -38,6 +47,52 @@
 - Каждое изменение проекта записывается в `README.md` (раздел «Журнал изменений»). Этот файл держим актуальным при изменении структуры.
 - Комментарии и документация на русском, идентификаторы на английском.
 
+## Общие части игры (Base.Kit)
+
+Сборка `Base.Kit` (`Assets/Scripts/Kit`) — то, что нужно в каждой игре поверх площадки: окна, звук, музыка, анимации,
+настройки игрока. Без спрайтов, моделей и стиля: вид — у игры (детали-префабы, шрифты, цвета в её конфигах).
+
+- **Подключение.** В MonoInstaller игры (ProjectContext): `KitBindings.InstallProject(Container, soundConfig, uiConfig)` —
+  `IGameSettings`, `SoundConfig`, `UiConfig`. В SceneContext сцены с интерфейсом — `KitSceneInstaller` (корень UI с `UiSafeArea`,
+  `SoundPlayer`, `MusicPlayer`): он биндит `IUiService`, `UiBackButton`, звуки и петли (`MusicPlayer` по `LoopChannel`).
+  Ссылки в сцене проставляет генератор игры (`EditorSetup`), поиска по сцене нет.
+- **Окна.** Каждое окно — префаб с наследником `UiWindow` в `UiConfig.WindowsFolder`; список `UiConfig.Windows` собирается сам
+  (`Base/UI/Rebuild Windows`). Открывается `IUiService.OpenAsync<T>(ct, setup)` (создаётся из префаба), закрывается
+  `CloseAsync` (удаляется): в памяти только видимое. Появление и скрытие — ассеты `UiTransitionConfig` (эффекты
+  `[SerializeReference, SubclassSelector]`, новый эффект — наследник `UiEffect`), не код окна. Кнопка «Назад» Android и Escape
+  нажимает `BackButton` верхнего окна; корневой экран (`IsRootScreen`) на Android спрашивает о выходе (`IQuitPrompt` игры).
+  Мимолётное (Toast, всплывающие очки) — из `UiPool<T>` по префабу-детали, не `Instantiate` на каждый показ.
+- **Детали окон** (`UI/Views`): `UiButtonView` (шаблон кнопки, `Spawn` для списков), `UiPress` (вдавливание и щелчок),
+  `UiSway` (качание, подпрыгивание, пульсация), `SpriteFlipbook` (смена кадров), `VolumeSliderView` (ползунок громкости,
+  окно связывает его `UiWindow.BindVolume`), `UiFitHeight` (колонка ужимается, если не влезает), `UiLabelPlate` (надпись на подложке).
+  Префабы деталей — у игры (`Prefabs/UI/Parts`), шаблон даёт только компоненты.
+- **Звук.** `SoundPlayer.Play(id)`: ID строкой — `UiSfx.*` для интерфейса, константы игры для остального; клипы и громкость —
+  строки `SoundConfig`. Без клипов — заглушка: встроенная у звуков интерфейса, у своих — `SoundPlayer.SetFallback` с синтезом
+  `ProceduralSounds`. Щелчок кнопки даёт `UiPress`, открытие окна — `UiService` (молчащее окно — `PlaysOpenSound`): в коде окна
+  щелчок на кнопку не вызывать, будет двойной. Громкость — ползунки «Звуки» и «Музыка» (`IGameSettings`), выключателей нет
+  (0 — выключено), группы громкости в коде, не AudioMixer: в WebGL его нет. Новый звук мимо `SoundPlayer` не заводить.
+- **Музыка.** `MusicPlayer.Play(AssetReferenceT<AudioClip>)` / `Stop()`: переход между треками, в памяти один трек
+  (Addressables), канал `Ambience` — фон окружения, `PlayOverlay` — дорожка поверх фона. Приглушение под важный звук —
+  `SoundConfig.Entry.MusicDuck`. В путях ассетов Addressables нет квадратных скобок: в редакторе загрузка падает.
+- **Настройки игрока** — `IGameSettings` (громкость, вибрация, язык; раздел сохранения `settings`). Свои настройки игры —
+  отдельным сервисом в своём разделе. В `Construct`/`Awake` не читать: сохранение может быть ещё не загружено (`ISaveStore.IsLoaded`).
+- **Анимации.** Твин ждётся `await tween.AwaitAsync(ct)` (`Base.Tweens.TweenAwait`): отмена токена убивает твин.
+  Модули DOTween (`DOTweenModuleUI` и др.) из asmdef-сборок не видны, UI-твины — через ядро: `DOTween.To(getter, setter, …)`.
+  Движение объектов без DOTween — `Animate.*` (без замыканий), сглаживание — поля `AnimateEase`.
+- **Тексты.** `UiFormat.Format` — редкое (открытие окна); часто меняющееся число — `NumberTemplate` / `NumberText`
+  (без выделения памяти, текст меняется только при новом значении). Ключи шаблона — `KitTexts`, ru и en в `LocalizationTable`.
+- **Производительность (телефоны и браузер).** В WebGL сборщик мусора останавливает всю игру, поэтому код, который
+  работает каждый кадр или на каждое событие игры, не создаёт объектов: рабочие списки — поля, очищаемые перед использованием;
+  без LINQ, замыканий, `GetComponent` и сборки строк в таких местах; списки по `IReadOnlyList` — `for`, не `foreach`.
+  В цикле на каждый кадр — `UniTask.Yield()` и проверка `ct.IsCancellationRequested`. Редкое (открытие окна) может выделять память.
+- **Сторож сохранений.** Тест игры — наследник `SaveCompatibilityTestBase` (`Base.Testing`): папка снимков, все разделы, класс
+  ключей, текущие ID контента. Снимок — `Base/Saves/Export Release Fixture` в день выпуска (папку и ID даёт `IReleaseFixtureSource`
+  в Editor-сборке игры), старые снимки не удалять. Новый раздел сохранения — строка в `Sections`.
+- **Вёрстка UI под любой экран.** `CanvasScaler`: Scale With Screen Size, 1920×1080, режим Expand. Окна и панели не больше
+  1760×1000. Элемент у края — якорями к своему углу или краю, растягиваемое — stretch. Корень UI сцены — `UiSafeArea`.
+  Списки — `ScrollRect` + `VerticalLayoutGroup` + `ContentSizeFitter`, строки на `LayoutElement`. Текст — TMP с автоподбором
+  размера и переносом, проверять на самом длинном языке (de, fr, pt) и на 16:9, 21:9, 4:3, 1:1, 9:16.
+
 ## Структура
 
 ```
@@ -45,9 +100,13 @@ Assets/
   Scripts/
     Core/                 Base.Core.asmdef       чистый C# без UnityEngine: локализация
       Localization/         ILocalization, Localization, LocalizationTable: тексты интерфейса, языки ru и en
+                            ILocalizationSource, CsvLocalizationParser: тексты игры из CSV (Google Таблица)
     Services/             Base.Services.asmdef   общий слой игры поверх площадки; ссылается на Core и Abstractions
       Debugging/PlatformTestPanel.cs  отладочная панель: кнопка на каждый метод платформенных интерфейсов, UI строится в коде
       Quality/              IQualityService, QualityService, QualityTier: уровень качества по типу устройства
+      Haptics/              IHapticsService, HapticsService: короткая вибрация (Android); в браузере и редакторе недоступна
+      Analytics/            IAnalytics, Analytics, AnalyticsEvent: события по «папкам» (имя события → Path → Param) поверх IAnalyticsService
+      Texts/                TextAssetLocalizationSource: CSV-файл игры как источник ILocalization
       Saves/                ISaveStore, SaveStore, ISaveMigration: сохранение по разделам с версиями поверх ICloudSaveService
       Monetization/         MonetizationConfig    товары, частота рекламы, правила наград: правится в каждой игре
                             IEntitlements         права игрока (no_ads и др.) в разделе сохранения
@@ -63,6 +122,7 @@ Assets/
                             IPurchaseService     каталог, покупка, pending-покупки, consume
                             ICloudSaveService    один JSON-блоб на игрока
                             ILeaderboardService  submit, top, запись игрока
+                            IAnalyticsService    события и свойства игрока (RuStore — AppMetrica, Яндекс и VK — Яндекс Метрика)
                             DeviceKind, DeviceKinds  тип устройства и запасное определение через Unity
                             PlatformId, PlatformDefines
       Stub/               Base.Platform.Stub.asmdef     заглушки: редактор и билды без SDK (PlayerPrefs, мгновенный успех)
@@ -82,24 +142,45 @@ Assets/
       RuStore/            Base.Platform.RuStore.asmdef  define BASE_RUSTORE, платформы Android+Editor
                             RuStoreAdsService    Яндекс Реклама (пакет com.yandex.mobileads), предзагрузка обоих форматов
                             RuStoreAdUnits       идентификаторы рекламных блоков (сейчас демо)
+                            RuStoreAppMetrica    запуск AppMetrica до первой сцены, API key приложения
+                            RuStoreAnalyticsService  события и свойства игрока в AppMetrica
                             RuStoreLinker.xml    защита сборок Яндекса от стриппинга, только в Android-сборке
         Plugins/Android/    .aar SDK RuStore, когда понадобятся (пока пусто)
+      Web/                Base.Platform.Web.asmdef      платформы WebGL+Editor, без define: общее для web-площадок
+                            WebMetrikaAnalyticsService  аналитика Яндекс Игр и VK через Яндекс Метрику
+        Plugins/            WebMetrika.jslib      вызовы ym(): события «параметрами визитов», свойства игрока
       Installers/         Base.Platform.Installers.asmdef
                             PlatformInstaller    единственное место выбора реализации по define
                             PlatformInitializer  IInitializable, запускает InitializeAsync площадки,
                                                  затем выставляет язык и качество, загружает сохранение,
                                                  затем NotifyGameReady, затем восстанавливает покупки
+    Kit/                  Base.Kit.asmdef        общие части игры поверх площадки (раздел «Общие части игры»), без спрайтов и стиля
+      UI/                   UiWindow, UiService (IUiService), UiConfig, UiBackButton (IQuitPrompt), UiSafeArea, UiPool<T>
+        Transitions/        UiTransitionConfig, UiEffect и наследники (Fade, Slide, Move, Scale, Rotate, Punch, Shake, Stagger)
+        Views/              UiButtonView, UiPress, UiSway, SpriteFlipbook, VolumeSliderView, UiFitHeight, UiLabelPlate
+      Audio/                SoundPlayer, SoundConfig, ProceduralSounds, MusicPlayer (LoopChannel), UiSfx
+      Settings/             IGameSettings, GameSettings: громкость, вибрация, язык (раздел сохранения settings)
+      Tweens/               TweenAwait (DOTween через UniTask), Animate и AnimateEase (движение без замыканий)
+      Text/                 UiFormat, NumberTemplate, NumberText, KitTexts
+      Inspector/            SubclassSelectorAttribute для [SerializeReference]
+      KitBindings, KitSceneInstaller  биндинги: проект (из инсталлера игры) и сцена с UI (SceneContext)
+      Editor/               Base.Kit.Editor.asmdef  SubclassSelectorDrawer, UiWindowRegistry (Base/UI/Rebuild Windows),
+                            SaveFixtureExporter (Base/Saves/Export Release Fixture, IReleaseFixtureSource игры)
+      Testing/              Base.Testing.asmdef     SaveCompatibilityTestBase, JsonFlattener: основа теста сохранений игры
+      Tests/                Base.Kit.Tests.asmdef   EditMode-тесты шаблона
     Editor/               Base.Editor.asmdef
                             PlatformSwitcher         меню Base/Platform: target, defines, шаблон, плагины
                             PlatformPluginToggler    включает .jslib/.aar только активной площадки
                             PlatformBuildPreprocessor проверка перед любой сборкой, падает при несоответствии
                             BuildScript              меню Base/Build и CLI-точки входа, результат в Builds/<площадка>
                             VKGamesDeployer          меню Base/Deploy: выкладка Builds/VKGames на хостинг VK (dev)
-                            ProjectIdentity          имя компании, название, Android-пакет; выставляются при переключении и сборке
+                            ProjectIdentity          имя компании, название, Android-пакет, номер счётчика Метрики; выставляются при переключении и сборке
                             PlatformLinkXml          дополнительный link.xml только для сборки нужной платформы (Android: RuStoreLinker.xml)
                             ProjectContextCreator    меню Base/Setup/Create ProjectContext
+      Texts/                LocalizationSheet, LocalizationSheetDownloader: меню Base/Localization/Download Sheets
                             PlatformTestSceneCreator меню Base/Setup/Create Platform Test Scene, создаёт Scenes/PlatformTest.unity
                             PlatformTargets          соответствие площадка -> BuildTarget, шаблон, папка плагинов
+  Plugins/Demigiant/      DOTween (бесплатная версия, Asset Store); настройки — Resources/DOTweenSettings.asset
   Plugins/Android/        mainTemplate.gradle, settingsTemplate.gradle, gradleTemplate.properties: пользовательские
                           gradle-шаблоны Unity. Единственное исключение из запрета Assets/Plugins: Unity ищет их только здесь.
                           Разделы "Android Resolver" в них пишет EDM4U, руками не править
@@ -109,15 +190,16 @@ Assets/
     VKGames/vk-bridge.min.js  VK Bridge 3.0.2 (MIT), своя копия вместо CDN
     VKPlay/index.html     шаблон для VK Play, API ещё не подключён
   Resources/
-    ProjectContext.prefab Zenject ProjectContext с PlatformInstaller
+    ProjectContext.prefab Zenject ProjectContext с PlatformInstaller (инсталлер игры добавляется после него)
     Fonts/Roboto-Regular.ttf  шрифт с кириллицей, Apache 2.0. Встроенный шрифт Unity в WebGL кириллицу не рисует
   Scenes/
-    PlatformTest.unity    тестовая сцена с кнопками, первая в Build Settings, пока нет игровых сцен
-    SampleScene.unity     остаток шаблона URP
+    PlatformTest.unity    тестовая сцена с кнопкой на каждый метод площадки; в Build Settings выключена, первой идёт сцена игры
   link.xml                защита сборок Base.* и UniTask от стриппинга
-  Game/<Название>/       код конкретной игры: своя сборка, свои сцены и ресурсы. В шаблоне папки нет
-Packages/manifest.json    UniTask (git), com.yandex.mobileads 8.4.0 (OpenUPM, тянет EDM4U). Zenject не здесь, а в Assets
-                          из Asset Store. Реестр OpenUPM ограничен scope-ами com.yandex.mobileads и com.google.external-dependency-manager
+  <Название>Content/     всё своё у игры: Scripts, Configs, Localization, Art, Prefabs, Scenes. В шаблоне папки нет
+Packages/manifest.json    все сторонние пакеты — через git с тегом версии (без реестров): UniTask 2.5.11, com.yandex.mobileads 8.4.0,
+                          адаптер AdRevenue 1.0.0, io.appmetrica.analytics 6.10.0, EDM4U 1.2.189 (пакеты Unity — URP, Addressables 2.8.1 — из реестра Unity). Git-пакеты Unity 6.3 не проверяет
+                          на подпись, поэтому нет предупреждений «Signature: Missing». Обновление — сменой тега. Zenject не здесь, а в Assets
+                          из Asset Store
 vk-hosting-config.json    выкладка Builds/VKGames на хостинг VK, ID игры
 ```
 
@@ -216,7 +298,10 @@ Unity -batchmode -quit -projectPath . -buildTarget Android -executeMethod Base.E
     выкладывается отдельно через `Base/Deploy/VK Games (dev)`.
   - Вход в VK нужен один раз: `npx @vkontakte/vk-miniapps-deploy` в PowerShell из корня проекта, открыть ссылку.
     Токен хранится у пользователя (configstore), в проект не попадает. Если Unity сообщит, что нужен вход, повторить.
-  - Прод (перед модерацией) выкладывается вручную той же командой из PowerShell: он требует подтверждения с телефона.
+  - Прод (перед модерацией) выкладывается вручную той же командой из PowerShell (интерактивно: из фона не подтвердить).
+    Готовый конфиг прода — папка `Temp/VKGamesDeployProd` (`update_prod: 1`, `noprompt: 1`). После «Please, confirm deploy
+    on your phone» VK присылает **код в сообщения VK от «Администрации»** (не пуш), утилита ждёт его ввода (19.11). Ошибка
+    `invalid json … <!DOCTYPE` при загрузке — сбой сервера VK после частых загрузок: подождать и повторить.
   - Конфиг `vk-hosting-config.json` в корне хранит ID игры и путь `Builds/VKGames`.
 - **Хостинг VK не отдаёт заголовок `Content-Encoding`** для `.br`/`.gz` (проверено 11.09.2026: `binary/octet-stream`),
   и сборка с обычным сжатием не загружается («Unable to parse … web server … misconfigured»). Поэтому для VK
@@ -266,5 +351,5 @@ Unity -batchmode -quit -projectPath . -buildTarget Android -executeMethod Base.E
 
 ## Что не трогать
 
-- `Assets/TutorialInfo`, `Assets/Readme.asset`: остатки шаблона Unity, удалить при первой чистке.
+- `Assets/TutorialInfo`, `Assets/Readme.asset`, `SampleScene`: удалены (остатки шаблона Unity; в шаблоне — 24.11).
 - `Far.sln`: дубликат, можно удалить. Файлы `.sln` и `.csproj` Unity создаёт сам по имени папки проекта.
